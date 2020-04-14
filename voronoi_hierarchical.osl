@@ -1,0 +1,252 @@
+vector fract(vector x){
+  return x - floor(x);
+}
+
+vector rand3( vector p ) { 
+  vector d = p*2.0 + 0.5;
+  return noise("perlin", d);
+}
+
+
+float smin2(float a, float b, float r) {
+    float f = max(0., 1. - abs(b - a)/r);
+    return min(a, b) - r*.25*f*f;
+}
+
+
+float remap(float x, float ew){
+    float c = x;
+    if(c < ew) { 
+        c = abs(c - ew)/ew; // Normalize the domain to a range of zero to one.
+        c = smoothstep(0.03, 0.1, c);
+    }
+    else { // Over the threshold? Use the regular Voronoi cell value.
+        c = (c - ew)/(1. - ew); // Normalize the domain to a range of zero to one.
+        c = smoothstep(1.0, 1.0, c);
+    }
+    
+    return c;
+}
+
+
+vector voronoi( vector x, 
+                float probability_1, float probability_2, float probability_3,
+                float scale_layer_1, float scale_layer_2, float scale_layer_3,
+                float smoothing
+)
+{
+  
+    vector n = floor(x);
+    vector f = fract(x);
+    vector h = step(0.5, f) - 2.0;
+    n += h;
+
+    float id, le;
+
+    vector mo;
+    float md = 10.0, lMd = 10.0, lnDist, d;
+    
+    for( int a=0; a<=3; a++ )
+    for( int j=0; j<=3; j++ )
+    for( int i=0; i<=3; i++ )
+    {
+        vector g1 = n + vector(float(i),float(j), float(a));
+        vector rr = rand3(g1*scale_layer_1);
+        vector o = g1 + rr;
+        vector r = x - o;
+        float d = dot(r,r);
+        float z = rr[2];
+        
+        
+        if( z<probability_1)     
+        {
+            if( d<md )
+            {
+                md = d;
+                mo = r; 
+            }
+        }
+        else
+        {
+            for( int b=0; b<2; b++ )
+            for( int l=0; l<2; l++ )
+            for( int k=0; k<2; k++ )
+            {
+                vector g2 = g1 + vector(float(k),float(l), float(b))/2.0;
+                rr = rand3(g2*scale_layer_2);
+                o = g2 + rr/2.0;
+                r = x - o;
+                d = dot(r,r);
+                z = rr[2];
+                if( z<probability_2 )              
+                {
+                    if( d<md )
+                    {
+                        md = d;
+                        mo = r; 
+                    }
+                }
+                else
+                {
+                    for( int c=0; c<2; c++ )
+                    for( int n=0; n<2; n++ )
+                    for( int m=0; m<2; m++ )
+                    {
+                        vector g3 = g2 + vector(float(m),float(n), float(c))/4.0;
+                        rr = rand3( g3*scale_layer_3);
+                        o = g3 + rr/4.0;
+                        r = x - o;
+                        d = dot(r,r);
+                        z = rr[2];
+
+                        if( z<probability_3 )                
+                        {
+                            if( d<md )
+                            {
+                                md = d;
+                                mo = r; 
+                            }
+                        }
+                        else
+                        {
+                            for( int l=0; l<2; l++ )
+                            for( int t=0; t<2; t++ )
+                            for( int s=0; s<2; s++ )
+                            {
+                                vector g4 = g3 + vector(float(s), float(t), float(l))/8.0;
+                                rr = rand3( g4 );
+                                o = g4 + rr/8.0;
+                                r = x - o;
+                                d = dot(r,r);
+                                z = rr[2];
+                              
+                                if( d<md )
+                                {
+                                    md = d;
+                                    mo = r; 
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
+    for( int a=0; a<=3; a++ )
+    for( int j=0; j<=3; j++ )
+    for( int i=0; i<=3; i++ )
+    {
+        vector g1 = n + vector(float(i),float(j), float(a));
+        vector rr = rand3(g1*scale_layer_1);
+        vector o = g1 + rr;
+        vector r = x - o - mo;
+        float d = dot(r,r);
+        float z = rr[2];
+        
+        
+        if( z<probability_1)     
+        {
+            if(dot(r, r)>.00001) {
+                lnDist = dot(mo + r*.5, normalize(r));
+                lMd = smin2(lMd, lnDist, (lnDist*.5 + .5)*smoothing);
+            }
+        }
+        else
+        {
+            for( int b=0; b<2; b++ )
+            for( int l=0; l<2; l++ )
+            for( int k=0; k<2; k++ )
+            {
+                vector g2 = g1 + vector(float(k),float(l), float(b))/2.0;
+                rr = rand3(g2*scale_layer_2);
+                o = g2 + rr/2.0;
+                r = x - o - mo;
+                d = dot(r,r);
+                z = rr[2];
+                if( z<probability_2 )              
+                {
+                    if(dot(r, r)>.00001) {
+                        lnDist = dot(mo + r*.5, normalize(r));
+                        lMd = smin2(lMd, lnDist, (lnDist*.5 + .5)*smoothing);
+                    }
+                }
+                else
+                {
+                    for( int c=0; c<2; c++ )
+                    for( int n=0; n<2; n++ )
+                    for( int m=0; m<2; m++ )
+                    {
+                        vector g3 = g2 + vector(float(m),float(n), float(c))/4.0;
+                        rr = rand3( g3*scale_layer_3);
+                        o = g3 + rr/4.0;
+                        r = x - o - mo;
+                        d = dot(r,r);
+                        z = rr[2];
+
+                        if( z<probability_3 )                
+                        {
+                            if(dot(r, r)>.00001) {
+                                lnDist = dot(mo + r*.5, normalize(r));
+                                lMd = smin2(lMd, lnDist, (lnDist*.5 + .5)*smoothing);
+                            }
+                        }
+                        else
+                        {
+                            for( int l=0; l<2; l++ )
+                            for( int t=0; t<2; t++ )
+                            for( int s=0; s<2; s++ )
+                            {
+                                vector g4 = g3 + vector(float(s), float(t), float(l))/8.0;
+                                rr = rand3( g4 );
+                                o = g4 + rr/8.0;
+                                r = x - o - mo;
+                                d = dot(r,r);
+                                z = rr[2];
+                              
+                                if(dot(r, r)>.00001) {
+                                    lnDist = dot(mo + r*.5, normalize(r));
+                                    lMd = smin2(lMd, lnDist, (lnDist*.5 + .5)*smoothing);
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return vector(max(lMd, 0.0), le, id );
+}
+
+
+
+shader voronoi_smooth(
+    vector translate = vector(0.0, 0.0, 0.0),
+    vector scale = vector(1.0, 1.0, 1.0),
+
+    float probability_layer1 = 0.15,
+    float probability_layer2 = 0.2,
+    float probability_layer3 = 0.4,
+
+    float smoothing = 0.2,
+    float border_thickness = 0.0,
+
+    vector scale_layers = vector(1.0, 1.0, 1.0),
+    
+    output vector result = vector(0.0)
+)
+{   
+    vector pos = P + translate;
+    vector uv = pos * scale;
+    vector c = voronoi(uv, probability_layer1, probability_layer2, probability_layer3, scale_layers[0], scale_layers[1], scale_layers[2], smoothing);
+    
+
+    // result = 0.6 + 0.4*cos( c[1]*0.6 + vector(0.0,0.9,1.5) );
+    // result *= smoothstep( 0.008, 0.015, sqrt(c[0]) );
+
+    float remapped = remap(c[0], border_thickness);
+    result = vector(remapped);
+
+}
